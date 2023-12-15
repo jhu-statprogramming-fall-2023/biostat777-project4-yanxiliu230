@@ -1,0 +1,540 @@
+---
+title: "Coffee Quality"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+source_code: embed
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidytuesdayR)
+library(maps)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(plotly)
+library(patchwork)
+```
+
+
+
+
+```{r global, include=FALSE}
+# function to test if the directory exists, and create one if not
+data_dir <- function(folder) {
+  if(!file.exists(paste(here::here(), folder, sep="/"))) {
+    dir.create(paste(here::here(), folder, sep="/"))
+    }
+}
+data_dir("data")
+
+# write.csv(coffee_ratings, 
+#           file=paste(here::here(), 'data/coffee_ratings.csv', sep="/"), 
+#           row.names = FALSE)
+
+data <- read.csv(paste(here::here(), 'data/coffee_ratings.csv', sep="/"))
+
+
+world <- map_data("world")
+
+world$country_of_origin <- world$region
+world[world$region == "USA" & !is.na(world$subregion) & world$subregion == "Hawaii",
+      "country_of_origin"] <- "United States (Hawaii)"
+world[world$region == "Puerto Rico","country_of_origin"] <- "United States (Puerto Rico)"
+world[world$region == "USA" & !is.na(world$subregion) & world$subregion != "Hawaii","country_of_origin"] <- "United States"
+world[world$region == "USA" & is.na(world$subregion),"country_of_origin"] <- "United States"
+world[world$region == "Tanzania","country_of_origin"] <- "Tanzania, United Republic Of"
+
+
+# by code
+data.code <- data
+
+iso <- read.csv("https://raw.githubusercontent.com/plotly/datasets/master/2014_world_gdp_with_codes.csv")[, c("COUNTRY", "CODE")]
+iso <- rbind(iso, c("Myanmar", "MMR"))
+
+data.code[!is.na(data.code$country_of_origin) & data.code$country_of_origin == "Cote d?Ivoire","country_of_origin"] <- "Cote d'Ivoire"
+data.code[!is.na(data.code$country_of_origin) & data.code$country_of_origin == "Tanzania, United Republic Of","country_of_origin"] <- "Tanzania"
+data.code[!is.na(data.code$country_of_origin) & data.code$country_of_origin == "United States (Hawaii)","country_of_origin"] <- "United States"
+data.code[!is.na(data.code$country_of_origin) & data.code$country_of_origin == "United States (Puerto Rico)","country_of_origin"] <- "Puerto Rico"
+```
+
+# About
+
+The data is on coffee <https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md>
+
+Coffee Quality Database
+
+```{r, eval = FALSE}
+tuesdata <- tidytuesdayR::tt_load('2020-07-07')
+tuesdata <- tidytuesdayR::tt_load(2020, week = 28)
+
+coffee_ratings <- tuesdata$coffee_ratings
+```
+
+
+# Data
+
+```{r}
+data %>% 
+  head(100) %>% 
+  select(total_cup_points, species, owner, country_of_origin, company,
+         processing_method, aroma, flavor, aftertaste, acidity, altitude_mean_meters) %>% 
+  DT::datatable()
+```
+
+
+
+
+# Static 1 {data-navmenu="Static"}
+
+## Column {data-width=550}
+
+### test LOL
+
+```{r}
+data %>% 
+  filter(total_cup_points != 0) %>%
+  ggplot(aes(x=total_cup_points)) + geom_histogram() + 
+  ggtitle("Histogram of Total Cup Points", subtitle = "Mean and Median included") + 
+  geom_vline(aes(xintercept=mean(total_cup_points)),
+            color="blue", linetype="dashed", size=1) + 
+  geom_vline(aes(xintercept=median(total_cup_points)),
+            color="red", linetype="dashed", size=1)
+```
+
+## Column {data-width=450}
+
+### Chart B
+
+```{r}
+p1 <- ggplot(data, aes(x=factor(0), y=altitude_mean_meters)) + 
+  geom_boxplot() + ggtitle("Boxplot of mean altitude (all coffee included)") + ylab("mean altitude (meters)") + xlab("") + coord_flip()
+p2 <- data %>%
+  filter(altitude_mean_meters < 10000) %>%
+  ggplot(aes(x=factor(0), y=altitude_mean_meters)) + 
+  geom_boxplot() + ggtitle("Boxplot of mean altitude with abnormal removed") + ylab("mean altitude (meters)")  + xlab("") + coord_flip()
+p1/p2 + plot_annotation(
+  title = "Boxplot of mean altitude in meters"
+)
+```
+
+### Chart C
+
+```{r}
+data %>% 
+  filter(total_cup_points != 0) %>%
+  filter(altitude_mean_meters < 10000) %>%
+  ggplot(aes(x=altitude_mean_meters, y=total_cup_points)) + 
+  geom_point() + geom_smooth()  + ggtitle("Cup points against Altitude", subtitle = "Trendline included") + ylab("Total Cup Points")
+```
+
+# Static 2 {data-navmenu="Static"}
+
+## Test {.tabset}
+
+### Body
+
+```{r}
+df <- data.code %>%
+  group_by(country_of_origin) %>%
+  summarise(mean_variable = mean(body, na.rm = TRUE)) %>%
+  full_join(iso, by = c("country_of_origin" = "COUNTRY"))
+
+g <- list(
+  showframe = FALSE,
+  showcoastlines = TRUE,
+  lonaxis = list(showgrid = T),
+  lataxis = list(showgrid = T),
+  projection = list(type = 'Mercator')
+)
+
+fig <- plot_geo(df)
+l <- list(color = toRGB("grey"), width = 0.5)
+fig <- fig %>% add_trace(
+    z = ~mean_variable, color = ~mean_variable, colors = 'Blues',
+    text = ~country_of_origin, locations = ~CODE, marker = list(line = l)
+  )
+fig <- fig %>% colorbar(title = 'Body')
+fig <- fig %>% layout(
+    title = 'Geographic Distribution of Mean Coffee Body',
+    geo = g
+  )
+
+fig
+```
+
+### Sweetness
+
+```{r}
+df <- data.code %>%
+  group_by(country_of_origin) %>%
+  summarise(mean_variable = mean(sweetness, na.rm = TRUE)) %>%
+  full_join(iso, by = c("country_of_origin" = "COUNTRY"))
+
+g <- list(
+  showframe = FALSE,
+  showcoastlines = TRUE,
+  lonaxis = list(showgrid = T),
+  lataxis = list(showgrid = T),
+  projection = list(type = 'Mercator')
+)
+
+fig <- plot_geo(df)
+l <- list(color = toRGB("grey"), width = 0.5)
+fig <- fig %>% add_trace(
+    z = ~mean_variable, color = ~mean_variable, colors = 'Blues',
+    text = ~country_of_origin, locations = ~CODE, marker = list(line = l)
+  )
+fig <- fig %>% colorbar(title = 'Sweetness')
+fig <- fig %>% layout(
+    title = 'Geographic Distribution of Mean Coffee Sweetness',
+    geo = g
+  )
+
+fig
+```
+
+
+### Acidity
+
+```{r}
+df <- data.code %>%
+  group_by(country_of_origin) %>%
+  summarise(mean_variable = mean(acidity, na.rm = TRUE)) %>%
+  full_join(iso, by = c("country_of_origin" = "COUNTRY"))
+
+g <- list(
+  showframe = FALSE,
+  showcoastlines = TRUE,
+  lonaxis = list(showgrid = T),
+  lataxis = list(showgrid = T),
+  projection = list(type = 'Mercator')
+)
+
+fig <- plot_geo(df)
+l <- list(color = toRGB("grey"), width = 0.5)
+fig <- fig %>% add_trace(
+    z = ~mean_variable, color = ~mean_variable, colors = 'Blues',
+    text = ~country_of_origin, locations = ~CODE, marker = list(line = l)
+  )
+fig <- fig %>% colorbar(title = 'Acidity')
+fig <- fig %>% layout(
+    title = 'Geographic Distribution of Mean Coffee Acidity',
+    geo = g
+  )
+
+fig
+```
+
+
+### Flavor
+
+```{r}
+df <- data.code %>%
+  group_by(country_of_origin) %>%
+  summarise(mean_variable = mean(flavor, na.rm = TRUE)) %>%
+  full_join(iso, by = c("country_of_origin" = "COUNTRY"))
+
+g <- list(
+  showframe = FALSE,
+  showcoastlines = TRUE,
+  lonaxis = list(showgrid = T),
+  lataxis = list(showgrid = T),
+  projection = list(type = 'Mercator')
+)
+
+fig <- plot_geo(df)
+l <- list(color = toRGB("grey"), width = 0.5)
+fig <- fig %>% add_trace(
+    z = ~mean_variable, color = ~mean_variable, colors = 'Blues',
+    text = ~country_of_origin, locations = ~CODE, marker = list(line = l)
+  )
+fig <- fig %>% colorbar(title = 'Flavor')
+fig <- fig %>% layout(
+    title = 'Geographic Distribution of Mean Coffee Flavor',
+    geo = g
+  )
+
+fig
+```
+
+
+# Interactive 1 {data-navmenu="Interactive"}
+
+## Column {.sidebar}
+
+```{r}
+selectInput("cup", "Cupping Criteria:",
+                  c("Flavor" = "flavor",
+                    "Sweetness" = "sweetness",
+                    "Body" = "body",
+                    "Acidity" = "acidity",
+                    "Aroma" = "aroma",
+                    "Balance" = "balance",
+                    "Uniformity" = "uniformity",
+                    "Clean Cup" = "clean_cup",
+                    "Moisture" = "moisture"))
+```
+
+
+## Column
+
+```{r}
+formulaText1 <- reactive({
+    paste("total_cup_points ~ ", input$cup)
+  })
+
+formulaTitle1 <- reactive({
+    paste("Total Cup Points versus", 
+          gsub("_", " " , input$variable2), 
+          "with correlation", 
+          round(cor(data$total_cup_points, data[,input$cup]),2)
+          )
+  })
+
+renderPlot({
+    plot(as.formula(formulaText1()),
+         data = data[data$total_cup_points != 0,],
+         pch = 20,
+         col = "cyan4",
+         main = formulaTitle1(),
+         ylab = "Total Cup Points",
+         xlab = gsub("_", " " , input$variable2))
+  abline(lm(as.formula(formulaText1()), data = data[data$total_cup_points != 0,]), 
+         col = "coral1", lwd = 2)
+  })
+```
+
+# Interactive 2 {data-navmenu="Interactive"}
+
+
+## Column {.sidebar}
+
+acidity, aroma, flavor, aftertaste, body, balance, uniformity, clean_cup, sweetness, moisture
+
+
+```{r}
+selectInput("variable1", "Cupping Criteria:",
+                  c("Flavor" = "flavor",
+                    "Sweetness" = "sweetness",
+                    "Body" = "body",
+                    "Acidity" = "acidity",
+                    "Aroma" = "aroma",
+                    "Balance" = "balance",
+                    "Uniformity" = "uniformity",
+                    "Clean Cup" = "clean_cup",
+                    "Moisture" = "moisture"))
+
+selectInput("variable2", "Methods:",
+                  c("Processing Method" = "processing_method",
+                    "Species" = "species"))
+
+checkboxInput("outliers", "Show outliers", TRUE)
+```
+
+## Column
+
+### bar
+
+```{r}
+formulaText <- reactive({
+    paste(input$variable1, " ~", input$variable2)
+  })
+
+formulaTitle <- reactive({
+    paste(gsub("_", " " , input$variable1), "versus", gsub("_", " " , input$variable2))
+  })
+
+  # Generate a plot of the requested variable against mpg ----
+  # and only exclude outliers if requested
+renderPlot({
+    boxplot(as.formula(formulaText()),
+            data = data,
+            outline = input$outliers,
+            col = "#75AADB", pch = 19, main=formulaTitle())
+  })
+```
+
+
+```{r, eval=FALSE, include=FALSE}
+renderPlot({
+data %>%
+  filter(!is.na(!!sym(input$variable))) %>%
+  ggplot(aes_string(x=input$variable2, y=input$variable)) +
+geom_bar(stat="identity", position=position_dodge()) + theme(axis.text.x = element_text(angle = 45,  hjust=1)) + ggtitle("test")
+})
+```
+
+# Analysis
+
+## Tables {.tabset} {data-width=450}
+
+### Min cup points
+
+```{r}
+data %>% 
+  slice_min(total_cup_points, n=5) %>%
+  select(total_cup_points, species, acidity, country_of_origin, processing_method, altitude_mean_meters) %>%
+  DT::datatable()
+```
+### top cup points
+
+```{r}
+data %>% 
+  slice_max(total_cup_points, n=5) %>%
+  select(total_cup_points, species, acidity, country_of_origin, processing_method, altitude_mean_meters) %>%
+  arrange(desc(total_cup_points)) %>%
+  DT::datatable()
+```
+
+### Summary of cup point attributes by processing method
+
+```{r}
+data %>%
+  filter(!is.na(total_cup_points)) %>%
+  filter(!is.na(processing_method)) %>%
+  group_by(processing_method) %>%
+  summarise(mean_cup_points = mean(total_cup_points, na.rm = T),
+            mean_acidity = mean(acidity, na.rm = T),
+            mean_aroma = mean(aroma, na.rm = T),
+            mean_flavor = mean(flavor, na.rm = T),
+            mean_aftertaste = mean(aftertaste, na.rm = T),
+            mean_body = mean(body, na.rm = T),
+            mean_balance = mean(balance, na.rm = T),
+            mean_uniformity = mean(uniformity, na.rm = T),
+            mean_clean_cup = mean(clean_cup, na.rm = T),
+            mean_sweetness = mean(sweetness, na.rm = T),
+            mean_moisture = mean(moisture, na.rm = T)) %>%
+  DT::datatable()
+```
+
+### Summary of cup point attributes by coffee species
+
+
+```{r}
+data %>%
+  filter(!is.na(species)) %>%
+  group_by(species) %>%
+  summarise(mean_cup_points = mean(total_cup_points, na.rm = T),
+            mean_acidity = mean(acidity, na.rm = T),
+            mean_aroma = mean(aroma, na.rm = T),
+            mean_flavor = mean(flavor, na.rm = T),
+            mean_aftertaste = mean(aftertaste, na.rm = T),
+            mean_body = mean(body, na.rm = T),
+            mean_balance = mean(balance, na.rm = T),
+            mean_uniformity = mean(uniformity, na.rm = T),
+            mean_clean_cup = mean(clean_cup, na.rm = T),
+            mean_sweetness = mean(sweetness, na.rm = T),
+            mean_moisture = mean(moisture, na.rm = T)) %>%
+  DT::datatable()
+```
+
+## Plots {.tabset} {data-width=550}
+
+### altitude
+
+```{r}
+p1 <- ggplot(data, aes(x=factor(0), y=altitude_mean_meters)) + 
+  geom_boxplot() + ggtitle("Boxplot of mean altitude (all coffee included)") + ylab("mean altitude (meters)") + xlab("") + coord_flip()
+p2 <- data %>%
+  filter(altitude_mean_meters < 10000) %>%
+  ggplot(aes(x=factor(0), y=altitude_mean_meters)) + 
+  geom_boxplot() + ggtitle("Boxplot of mean altitude with abnormal removed") + ylab("mean altitude (meters)")  + xlab("") + coord_flip()
+p1/p2 + plot_annotation(
+  title = "Boxplot of mean altitude in meters"
+)
+```
+
+### altitude vs cup points
+
+```{r}
+data %>% 
+  filter(total_cup_points != 0) %>%
+  filter(altitude_mean_meters < 10000) %>%
+  ggplot(aes(x=altitude_mean_meters, y=total_cup_points)) + 
+  geom_point() + geom_smooth()  + ggtitle("Cup points against Altitude", subtitle = "Trendline included") + ylab("Total Cup Points")
+```
+
+### batplot of acidity
+
+
+```{r}
+data %>%
+  filter(!is.na(processing_method)) %>%
+  ggplot(aes(x=processing_method, y=acidity)) +
+geom_bar(stat="identity", position=position_dodge()) + theme(axis.text.x = element_text(angle = 45,  hjust=1)) + ggtitle("Barplot of Acidity versus processing method")
+```
+
+### After Taste
+
+```{r}
+data %>%
+  filter(data$total_cup_points != 0) %>%
+  ggplot(aes(x=aftertaste, y=total_cup_points)) + 
+  geom_point()  + facet_grid(cols = vars(species))  + ggtitle("Total Cup Points versus After Taste", subtitle = "grouped by species") + xlab("After Taste") + ylab("Total Cup Points")
+```
+
+
+### Data with code
+
+```{r}
+df <- data.code %>%
+  group_by(country_of_origin) %>%
+  summarise(mean_acidity = mean(acidity, na.rm = TRUE)) %>%
+  full_join(iso, by = c("country_of_origin" = "COUNTRY"))
+
+g <- list(
+  showframe = TRUE,
+  showcoastlines = TRUE,
+  projection = list(type = 'Mercator')
+)
+
+fig <- plot_geo(df)
+l <- list(color = toRGB("grey"), width = 0.5)
+fig <- fig %>% add_trace(
+    z = ~mean_acidity, color = ~mean_acidity, colors = 'Blues',
+    text = ~country_of_origin, locations = ~CODE, marker = list(line = l)
+  )
+fig <- fig %>% colorbar(title = 'Mean Acidity')
+fig <- fig %>% layout(
+    title = 'Mean Acidity by location',
+    geo = g
+  )
+
+fig
+```
+  
+```{r}
+data.code %>%
+  group_by(country_of_origin) %>%
+  summarise(mean_acidity = mean(acidity, na.rm = TRUE)) %>%
+  full_join(iso, by = c("country_of_origin" = "COUNTRY")) %>%
+  plot_ly(type='choropleth', locations=~CODE, z=~mean_acidity, text=~country_of_origin, colorscale="Blues")
+```
+
+### data with coordinate
+
+```{r}
+data %>% 
+  group_by(country_of_origin) %>%
+  summarise(mean_balance = mean(balance, na.rm = TRUE)) %>%
+  full_join(world, by = "country_of_origin") %>%
+  ggplot(aes(long, lat)) +
+  geom_polygon(aes(group = group, fill = mean_balance)) +
+  scale_fill_continuous(low="thistle2", high="darkred", 
+                       guide="colorbar",na.value="white") +
+  ggtitle("Geographical Distribution of Mean Coffee Balance") + 
+  labs(fill = "Mean Acidity")
+```
+
+### Functions Used
+
+| Package    | Functions |
+| -- | ----- |
+| `dplyr` | `slice_max()`, `filter()`, `arrange()`, `full_join()`, `slice_min()`, `summarise()`, `group_by()`|
+| `ggplot2` |  `geom_point()`, `geom_histogram()`, `geom_vline()`, `geom_smooth()`, `geom_boxplot()`, `geom_polygon()` |
+
+
