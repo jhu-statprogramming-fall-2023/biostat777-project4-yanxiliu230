@@ -370,7 +370,7 @@ geom_bar(stat="identity", position=position_dodge()) + theme(axis.text.x = eleme
 
 # Analysis
 
-## Tables {.tabset} {data-width=450}
+## Tables {data-width=450} {.tabset} 
 
 ### Min cup points
 
@@ -432,7 +432,7 @@ data %>%
   DT::datatable()
 ```
 
-## Plots {.tabset} {data-width=550}
+## Plots {data-width=550} {.tabset} 
 
 ### altitude
 
