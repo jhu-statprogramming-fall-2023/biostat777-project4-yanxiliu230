@@ -17,6 +17,8 @@ library(tidyr)
 library(dplyr)
 library(plotly)
 library(patchwork)
+library(stringr)
+library(corrplot)
 ```
 
 
@@ -63,9 +65,38 @@ data.code[!is.na(data.code$country_of_origin) & data.code$country_of_origin == "
 
 # About
 
-The data is on coffee <https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md>
+This dashboard gets you through coffee cupping, and allows you to explore what aspects of coffee contribute to high cupping (tasting) score. For coffee lovers like me, we have the impression that higher rated coffee are generally light roast, acidic, and fruit-flavored. How about we look at these aspects in the data.
 
-Coffee Quality Database
+This [Coffee Quality Database](https://github.com/jldbc/coffee-quality-database) can be accessed through `TidyTuesdayR` package on this [page](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md). The original data can be found [here](https://github.com/jldbc/coffee-quality-database).
+
+
+::: {#fig fig-cap="Coffee"}
+![](images/coffee.png){width="50%"}
+:::
+
+
+
+Some of the aspects of coffee you get to explore in this dashboard are:
+
+- Bean
+  - Species (arabica / robusta) 
+  - Altitude
+  - Processing Method
+  - Color
+- Quality Measure
+  - Aroma
+  - Flavor
+  - Aftertaste
+  - Acidity
+  - Body
+  - Balance
+  - Uniformity
+  - Cup Cleanliness
+  - Sweetness
+  - Moisture
+
+
+The video below will give you a demo on how to explore to the dashboard
 
 ```{r, eval = FALSE}
 tuesdata <- tidytuesdayR::tt_load('2020-07-07')
@@ -77,24 +108,26 @@ coffee_ratings <- tuesdata$coffee_ratings
 
 # Data
 
+This dataset contain reviews of 1312 arabica and 28 robusta coffee beans from the Coffee Quality Institute's trained reviewers. Total Cup Points is the numerical variable of the coffee score that we will use as a guide on the judges' evaluation for the coffee. The complete data dictionary can be found [here](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md).
+
 ```{r}
 data %>% 
   head(100) %>% 
   select(total_cup_points, species, owner, country_of_origin, company,
-         processing_method, aroma, flavor, aftertaste, acidity, altitude_mean_meters) %>% 
+         processing_method, altitude_mean_meters,
+         aroma, flavor, aftertaste, acidity, body, balance, uniformity,
+         clean_cup, sweetness, moisture) %>% 
   DT::datatable()
 ```
 
 
-
-
-# Static 1 {data-navmenu="Static"}
+# Overview {data-navmenu="Data Overview"}
 
 ## Column {data-width=550}
 
-### test LOL
+### Cup Points Distribution
 
-```{r}
+```{r, fig.cap="Histogram of Total cup points. The distribution is fairly normal excluding outliers with close median and mean"}
 data %>% 
   filter(total_cup_points != 0) %>%
   ggplot(aes(x=total_cup_points)) + geom_histogram() + 
@@ -107,9 +140,9 @@ data %>%
 
 ## Column {data-width=450}
 
-### Chart B
+### Altitude
 
-```{r}
+```{r, fig.cap="Boxplot of mean altitude. Altitude shows higher variation"}
 p1 <- ggplot(data, aes(x=factor(0), y=altitude_mean_meters)) + 
   geom_boxplot() + ggtitle("Boxplot of mean altitude (all coffee included)") + ylab("mean altitude (meters)") + xlab("") + coord_flip()
 p2 <- data %>%
@@ -121,9 +154,9 @@ p1/p2 + plot_annotation(
 )
 ```
 
-### Chart C
+### Cupping by altitude
 
-```{r}
+```{r, fig.cap="Scatterplot of cupping versus altitude. We do not see strong correlation at this point"}
 data %>% 
   filter(total_cup_points != 0) %>%
   filter(altitude_mean_meters < 10000) %>%
@@ -131,13 +164,13 @@ data %>%
   geom_point() + geom_smooth()  + ggtitle("Cup points against Altitude", subtitle = "Trendline included") + ylab("Total Cup Points")
 ```
 
-# Static 2 {data-navmenu="Static"}
+# Geographic Distribution {data-navmenu="Data Overview"}
 
 ## Test {.tabset}
 
 ### Body
 
-```{r}
+```{r, fig.cap="Geographic Distribution of coffee body"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_variable = mean(body, na.rm = TRUE)) %>%
@@ -168,7 +201,7 @@ fig
 
 ### Sweetness
 
-```{r}
+```{r, fig.cap="Geographic Distribution of coffee sweetness"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_variable = mean(sweetness, na.rm = TRUE)) %>%
@@ -200,7 +233,7 @@ fig
 
 ### Acidity
 
-```{r}
+```{r, fig.cap="Geographic Distribution of coffee acidity"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_variable = mean(acidity, na.rm = TRUE)) %>%
@@ -232,7 +265,7 @@ fig
 
 ### Flavor
 
-```{r}
+```{r, fig.cap="Geographic Distribution of coffee flavor"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_variable = mean(flavor, na.rm = TRUE)) %>%
@@ -262,9 +295,139 @@ fig
 ```
 
 
-# Interactive 1 {data-navmenu="Interactive"}
+### Aftertaste
+
+```{r, fig.cap="Geographic Distribution of coffee aftertaste"}
+df <- data.code %>%
+  group_by(country_of_origin) %>%
+  summarise(mean_variable = mean(aftertaste, na.rm = TRUE)) %>%
+  full_join(iso, by = c("country_of_origin" = "COUNTRY"))
+
+g <- list(
+  showframe = FALSE,
+  showcoastlines = TRUE,
+  lonaxis = list(showgrid = T),
+  lataxis = list(showgrid = T),
+  projection = list(type = 'Mercator')
+)
+
+fig <- plot_geo(df)
+l <- list(color = toRGB("grey"), width = 0.5)
+fig <- fig %>% add_trace(
+    z = ~mean_variable, color = ~mean_variable, colors = 'Blues',
+    text = ~country_of_origin, locations = ~CODE, marker = list(line = l)
+  )
+fig <- fig %>% colorbar(title = 'After Taste')
+fig <- fig %>% layout(
+    title = 'Geographic Distribution of Mean Coffee After Taste',
+    geo = g
+  )
+
+fig
+```
+
+
+
+# Correlation Overview {data-navmenu="Data Overview"}
+
+## Column
+
+### Correlation among cupping criteria
+
+```{r, fig.cap="Correlation among cupping criteria. Moisure shows low correlation with other criteria"}
+corrplot(cor(data[,c("aroma", "flavor", "aftertaste", "acidity", "body", "balance", "uniformity",
+         "clean_cup", "sweetness", "moisture")]), method="color", type="upper", tl.col="black", tl.srt=60)
+```
+
+
+# Attribute Interaction {data-navmenu="Across Attributes"}
 
 ## Column {.sidebar}
+
+In this section, you can explore how would different cupping criteria scores fluctuates with processing methods and species. Here are your options:
+
+- You can choose to include both or either of **Arabica** and **Robusta**
+- You can choose what **cupping criteria** you want to look at
+- You can choose if you want to see **processing method** or **color** of the bean
+- You can choose whether or not you want to include **outliers**
+
+```{r}
+checkboxInput("Arabica", "Arabica", TRUE)
+checkboxInput("Robusta", "Robusta", TRUE)
+
+selectInput("variable1", "Cupping Criteria:",
+                  c("Flavor" = "flavor",
+                    "Sweetness" = "sweetness",
+                    "Body" = "body",
+                    "Acidity" = "acidity",
+                    "Aroma" = "aroma",
+                    "Balance" = "balance",
+                    "Uniformity" = "uniformity",
+                    "Clean Cup" = "clean_cup",
+                    "Moisture" = "moisture"))
+
+selectInput("variable2", "Bean Attributes:",
+                  c("Processing Method" = "processing_method",
+                    "Color" = "color"))
+
+checkboxInput("outliers", "Show outliers", TRUE)
+```
+
+## Column
+
+### Interaction between coffee attributes and cupping
+
+```{r, fig.cap="Interaction between methods and cupping"}
+formulaText <- reactive({
+    paste(input$variable1, " ~", input$variable2)
+  })
+
+formulaTitle <- reactive({
+    paste(str_to_title(gsub("_", " " , input$variable1)), 
+          "versus", 
+          str_to_title(gsub("_", " " , input$variable2)))
+  })
+formulaylab <- reactive({
+    str_to_title(gsub("_", " " , input$variable1))
+  })
+formulaxlab <- reactive({
+    str_to_title(gsub("_", " " , input$variable2))
+  })
+
+
+renderPlot({
+  selected <- c()
+
+  if (input$Arabica) selected <- c("Arabica", selected)
+  if (input$Robusta) selected <- c("Robusta", selected)
+
+  data_subset <- data[data$species %in% selected,]
+
+
+  boxplot(as.formula(formulaText()),
+          data = data_subset,
+          outline = input$outliers,
+          col = "#BE7656", pch = 19, main=formulaTitle(),
+          xlab = formulaxlab(), ylab = formulaylab())
+  
+  })
+```
+
+
+```{r, eval=FALSE, include=FALSE}
+renderPlot({
+data %>%
+  filter(!is.na(!!sym(input$variable))) %>%
+  ggplot(aes_string(x=input$variable2, y=input$variable)) +
+geom_bar(stat="identity", position=position_dodge()) + theme(axis.text.x = element_text(angle = 45,  hjust=1)) + ggtitle("test")
+})
+```
+
+# Correlation with total cupping {data-navmenu="Across Attributes"}
+
+## Column {.sidebar}
+
+In this section, we are mainly interested in finding out which cupping criteria is related to the total cup points the most. Is it acidity and sweetness like we usually assume? Let's find out. The **correlation** between the criterion and total cup points is shown in the title of the plot. A linear fit line is included to demonstrate the trend
 
 ```{r}
 selectInput("cup", "Cupping Criteria:",
@@ -282,97 +445,59 @@ selectInput("cup", "Cupping Criteria:",
 
 ## Column
 
-```{r}
+### Total cup points versus cupping criteria
+
+```{r, fig.cap="cupping points correlation"}
 formulaText1 <- reactive({
     paste("total_cup_points ~ ", input$cup)
   })
 
 formulaTitle1 <- reactive({
     paste("Total Cup Points versus", 
-          gsub("_", " " , input$variable2), 
-          "with correlation", 
-          round(cor(data$total_cup_points, data[,input$cup]),2)
-          )
+          str_to_title(gsub("_", " " , input$cup)))
+  })
+formulaxlab1 <- reactive({
+    str_to_title(gsub("_", " " , input$cup))
   })
 
 renderPlot({
-    plot(as.formula(formulaText1()),
-         data = data[data$total_cup_points != 0,],
-         pch = 20,
-         col = "cyan4",
-         main = formulaTitle1(),
-         ylab = "Total Cup Points",
-         xlab = gsub("_", " " , input$variable2))
-  abline(lm(as.formula(formulaText1()), data = data[data$total_cup_points != 0,]), 
-         col = "coral1", lwd = 2)
-  })
-```
-
-# Interactive 2 {data-navmenu="Interactive"}
-
-
-## Column {.sidebar}
-
-acidity, aroma, flavor, aftertaste, body, balance, uniformity, clean_cup, sweetness, moisture
-
-
-```{r}
-selectInput("variable1", "Cupping Criteria:",
-                  c("Flavor" = "flavor",
-                    "Sweetness" = "sweetness",
-                    "Body" = "body",
-                    "Acidity" = "acidity",
-                    "Aroma" = "aroma",
-                    "Balance" = "balance",
-                    "Uniformity" = "uniformity",
-                    "Clean Cup" = "clean_cup",
-                    "Moisture" = "moisture"))
-
-selectInput("variable2", "Methods:",
-                  c("Processing Method" = "processing_method",
-                    "Species" = "species"))
-
-checkboxInput("outliers", "Show outliers", TRUE)
-```
-
-## Column
-
-### bar
-
-```{r}
-formulaText <- reactive({
-    paste(input$variable1, " ~", input$variable2)
-  })
-
-formulaTitle <- reactive({
-    paste(gsub("_", " " , input$variable1), "versus", gsub("_", " " , input$variable2))
-  })
-
-  # Generate a plot of the requested variable against mpg ----
-  # and only exclude outliers if requested
-renderPlot({
-    boxplot(as.formula(formulaText()),
-            data = data,
-            outline = input$outliers,
-            col = "#75AADB", pch = 19, main=formulaTitle())
+  
+  ggplot(data[data$total_cup_points != 0,],
+         aes(x=!!sym(input$cup), y=total_cup_points)) +
+    geom_point() + 
+    geom_smooth(method = "lm")  + 
+    ggtitle(formulaTitle1(), subtitle = paste("Correlation", round(cor(data$total_cup_points, data[,input$cup]),2))) + 
+    ylab("Total Cup Points") + 
+    xlab(formulaxlab1()) + 
+    theme(plot.subtitle = element_text(size=14),
+          plot.title = element_text(size=18),
+          axis.title.x = element_text(size = 12),
+          axis.title.y = element_text(size = 12),
+          axis.text.x = element_text(size = 10),
+          axis.text.y = element_text(size = 10))
+  
+  
+  #   plot(as.formula(formulaText1()),
+  #        data = data[data$total_cup_points != 0,],
+  #        pch = 20,
+  #        col = "cyan4",
+  #        main = formulaTitle1(),
+  #        ylab = "Total Cup Points",
+  #        xlab = str_to_title(gsub("_", " " , input$variable2)))
+  # abline(lm(as.formula(formulaText1()), data = data[data$total_cup_points != 0,]),
+  #        col = "coral1", lwd = 2)
   })
 ```
 
 
-```{r, eval=FALSE, include=FALSE}
-renderPlot({
-data %>%
-  filter(!is.na(!!sym(input$variable))) %>%
-  ggplot(aes_string(x=input$variable2, y=input$variable)) +
-geom_bar(stat="identity", position=position_dodge()) + theme(axis.text.x = element_text(angle = 45,  hjust=1)) + ggtitle("test")
-})
-```
+# Example Analysis
 
-# Analysis
-
-## Tables {data-width=450} {.tabset} 
+## Column {data-width=400} {.tabset} 
 
 ### Min cup points
+
+Coffee beans with lowest cup points varies in processing method and origin, but acidity is relatively low.
+
 
 ```{r}
 data %>% 
@@ -380,7 +505,11 @@ data %>%
   select(total_cup_points, species, acidity, country_of_origin, processing_method, altitude_mean_meters) %>%
   DT::datatable()
 ```
+
 ### top cup points
+
+Coffee beans with highest cup points are msotly washed/wet, has high acidity. All are Arabica. 4 out of 6 are from Ethiopia.
+
 
 ```{r}
 data %>% 
@@ -408,11 +537,11 @@ data %>%
             mean_clean_cup = mean(clean_cup, na.rm = T),
             mean_sweetness = mean(sweetness, na.rm = T),
             mean_moisture = mean(moisture, na.rm = T)) %>%
+  mutate_if(is.numeric, round, 3) %>%
   DT::datatable()
 ```
 
 ### Summary of cup point attributes by coffee species
-
 
 ```{r}
 data %>%
@@ -429,14 +558,15 @@ data %>%
             mean_clean_cup = mean(clean_cup, na.rm = T),
             mean_sweetness = mean(sweetness, na.rm = T),
             mean_moisture = mean(moisture, na.rm = T)) %>%
+  mutate_if(is.numeric, round, 3) %>%
   DT::datatable()
 ```
 
-## Plots {data-width=550} {.tabset} 
+## Column {data-width=600} {.tabset} 
 
-### altitude
+### Boxplots of Altitude
 
-```{r}
+```{r, fig.cap="Boxplots of mean altitudes"}
 p1 <- ggplot(data, aes(x=factor(0), y=altitude_mean_meters)) + 
   geom_boxplot() + ggtitle("Boxplot of mean altitude (all coffee included)") + ylab("mean altitude (meters)") + xlab("") + coord_flip()
 p2 <- data %>%
@@ -448,9 +578,9 @@ p1/p2 + plot_annotation(
 )
 ```
 
-### altitude vs cup points
+### Scatter plot of Total cup points versus altitude
 
-```{r}
+```{r, fig.cap="scatter plot of cupping versus altitude"}
 data %>% 
   filter(total_cup_points != 0) %>%
   filter(altitude_mean_meters < 10000) %>%
@@ -458,19 +588,20 @@ data %>%
   geom_point() + geom_smooth()  + ggtitle("Cup points against Altitude", subtitle = "Trendline included") + ylab("Total Cup Points")
 ```
 
-### batplot of acidity
+### Barplot of acidity
 
+Acidity is highest for washed/wet
 
-```{r}
+```{r, fig.cap="acidity by processing method"}
 data %>%
   filter(!is.na(processing_method)) %>%
   ggplot(aes(x=processing_method, y=acidity)) +
-geom_bar(stat="identity", position=position_dodge()) + theme(axis.text.x = element_text(angle = 45,  hjust=1)) + ggtitle("Barplot of Acidity versus processing method")
+geom_bar(stat="identity", position=position_dodge()) + theme(axis.text.x = element_text(angle = 45,  hjust=1)) + ggtitle("Barplot of Acidity versus processing method") + xlab("Processing Method")
 ```
 
 ### After Taste
 
-```{r}
+```{r, fig.cap = "Total cup points by after taste and species"}
 data %>%
   filter(data$total_cup_points != 0) %>%
   ggplot(aes(x=aftertaste, y=total_cup_points)) + 
@@ -478,9 +609,9 @@ data %>%
 ```
 
 
-### Data with code
+### Acidity Geography by country code
 
-```{r}
+```{r, fig.cap = "geographic distribution of acidity"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_acidity = mean(acidity, na.rm = TRUE)) %>%
@@ -515,9 +646,9 @@ data.code %>%
   plot_ly(type='choropleth', locations=~CODE, z=~mean_acidity, text=~country_of_origin, colorscale="Blues")
 ```
 
-### data with coordinate
+### Balance Geography by coordinate
 
-```{r}
+```{r, fig.cap="geographic distribution of sweetness"}
 data %>% 
   group_by(country_of_origin) %>%
   summarise(mean_balance = mean(balance, na.rm = TRUE)) %>%
@@ -527,14 +658,22 @@ data %>%
   scale_fill_continuous(low="thistle2", high="darkred", 
                        guide="colorbar",na.value="white") +
   ggtitle("Geographical Distribution of Mean Coffee Balance") + 
-  labs(fill = "Mean Acidity")
+  labs(fill = "Mean Balance")
 ```
+
+### Summary
+
+- Total cupping points correlate with flavor the most, followed by acidity. 
+- Washed/wet improves acidity
+
 
 ### Functions Used
 
 | Package    | Functions |
 | -- | ----- |
-| `dplyr` | `slice_max()`, `filter()`, `arrange()`, `full_join()`, `slice_min()`, `summarise()`, `group_by()`|
+| `dplyr` | `slice_max()`, `select()`, `filter()`, `arrange()`, `full_join()`, `slice_min()`, `summarise()`, `group_by()`|
+| `stringr` | `str_to_title()` |
 | `ggplot2` |  `geom_point()`, `geom_histogram()`, `geom_vline()`, `geom_smooth()`, `geom_boxplot()`, `geom_polygon()` |
+| `facet_grid()` | |
 
 
