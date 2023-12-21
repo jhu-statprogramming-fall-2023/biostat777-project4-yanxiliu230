@@ -5,7 +5,7 @@ account: yanxiliu23
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 10802948
-bundleId: 8051662
+bundleId: 8074235
 url: https://yanxiliu23.shinyapps.io/CoffeeQuality/
 version: 1
 asMultiple: FALSE

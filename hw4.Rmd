@@ -69,13 +69,6 @@ This dashboard gets you through coffee cupping, and allows you to explore what a
 
 This [Coffee Quality Database](https://github.com/jldbc/coffee-quality-database) can be accessed through `TidyTuesdayR` package on this [page](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md). The original data can be found [here](https://github.com/jldbc/coffee-quality-database).
 
-
-::: {#fig fig-cap="Coffee"}
-![](images/coffee.png){width="50%"}
-:::
-
-
-
 Some of the aspects of coffee you get to explore in this dashboard are:
 
 - Bean
