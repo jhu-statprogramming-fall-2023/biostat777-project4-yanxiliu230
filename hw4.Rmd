@@ -65,13 +65,13 @@ data.code[!is.na(data.code$country_of_origin) & data.code$country_of_origin == "
 
 # About
 
-This dashboard gets you through coffee cupping, and allows you to explore what aspects of coffee contribute to high cupping (tasting) score. For coffee lovers like me, we have the impression that higher rated coffee are generally light roast, acidic, and fruit-flavored. How about we look at these aspects in the data.
+This dashboard gets you through the journey of coffee cupping. You will be able to explore what aspects of coffee contribute to high cupping (tasting) score, a relatively authoritative overall judgement of the coffee quality from [Coffee Quality Institute](https://www.coffeeinstitute.org/). Business and consumers may refer to this score for their coffee options. For general coffee lovers like me, we have the impression that highly rated coffee among the judges are generally light roast, acidic, and fruit-flavored. Instead of randomly guessing, let's take a look at these aspects in the data.
 
-This [Coffee Quality Database](https://github.com/jldbc/coffee-quality-database) can be accessed through `TidyTuesdayR` package on this [page](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md). The original data can be found [here](https://github.com/jldbc/coffee-quality-database).
+This [Coffee Quality Database](https://github.com/jldbc/coffee-quality-database) can be accessed through `tidytuesdayR` package on this [page](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md). The original data can be found [here](https://github.com/jldbc/coffee-quality-database).
 
 Some of the aspects of coffee you get to explore in this dashboard are:
 
-- Bean
+- Bean attributes
   - Species (arabica / robusta) 
   - Altitude
   - Processing Method
@@ -88,8 +88,20 @@ Some of the aspects of coffee you get to explore in this dashboard are:
   - Sweetness
   - Moisture
 
+Analysis you will be seeing:
+
+- Overview of total cupping
+- Geographic Distribution of coffee cupping quality measures
+- Relationship of coffee bean altitude with processing method and cupping
+- Correlation among coffee quality measures
+- Coffee quality measures by processing method and color, option to separate coffee species
+- Relation of Coffee quality measures with overall judgement
 
 The video below will give you a demo on how to explore to the dashboard
+
+
+<iframe width="700" height="480" src="https://www.youtube.com/embed/_kJC6jtN5lg?si=suEuzF39NCtSQiCA" title="Project 4 demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 
 ```{r, eval = FALSE}
 tuesdata <- tidytuesdayR::tt_load('2020-07-07')
@@ -99,28 +111,24 @@ coffee_ratings <- tuesdata$coffee_ratings
 ```
 
 
-# Data
+# The Data
 
-This dataset contain reviews of 1312 arabica and 28 robusta coffee beans from the Coffee Quality Institute's trained reviewers. Total Cup Points is the numerical variable of the coffee score that we will use as a guide on the judges' evaluation for the coffee. The complete data dictionary can be found [here](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md).
+This dataset contain reviews of 1312 Arabica and 28 Robusta coffee beans from the [Coffee Quality Institute(CQI)](https://www.coffeeinstitute.org/)\'s trained reviewers. Total Cup Points is the numerical variable of the coffee score that we will use as a guide on the judges' evaluation for the coffee. It represents an **overall judgment** of the coffee bean taking into account multiple aspects. The complete data dictionary can be found [here](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md). Below is a table of the dataset
 
 ```{r}
 data %>% 
   head(100) %>% 
-  select(total_cup_points, species, owner, country_of_origin, company,
-         processing_method, altitude_mean_meters,
-         aroma, flavor, aftertaste, acidity, body, balance, uniformity,
-         clean_cup, sweetness, moisture) %>% 
   DT::datatable()
 ```
 
 
 # Overview {data-navmenu="Data Overview"}
 
-## Column {data-width=550}
+## Column
 
 ### Cup Points Distribution
 
-```{r, fig.cap="Histogram of Total cup points. The distribution is fairly normal excluding outliers with close median and mean"}
+```{r, fig.cap="Histogram of total cup points. The distribution is fairly normal excluding outliers with close median and mean"}
 data %>% 
   filter(total_cup_points != 0) %>%
   ggplot(aes(x=total_cup_points)) + geom_histogram() + 
@@ -131,39 +139,45 @@ data %>%
             color="red", linetype="dashed", size=1)
 ```
 
-## Column {data-width=450}
-
-### Altitude
-
-```{r, fig.cap="Boxplot of mean altitude. Altitude shows higher variation"}
-p1 <- ggplot(data, aes(x=factor(0), y=altitude_mean_meters)) + 
-  geom_boxplot() + ggtitle("Boxplot of mean altitude (all coffee included)") + ylab("mean altitude (meters)") + xlab("") + coord_flip()
-p2 <- data %>%
-  filter(altitude_mean_meters < 10000) %>%
-  ggplot(aes(x=factor(0), y=altitude_mean_meters)) + 
-  geom_boxplot() + ggtitle("Boxplot of mean altitude with abnormal removed") + ylab("mean altitude (meters)")  + xlab("") + coord_flip()
-p1/p2 + plot_annotation(
-  title = "Boxplot of mean altitude in meters"
-)
-```
-
-### Cupping by altitude
-
-```{r, fig.cap="Scatterplot of cupping versus altitude. We do not see strong correlation at this point"}
-data %>% 
-  filter(total_cup_points != 0) %>%
-  filter(altitude_mean_meters < 10000) %>%
-  ggplot(aes(x=altitude_mean_meters, y=total_cup_points)) + 
-  geom_point() + geom_smooth()  + ggtitle("Cup points against Altitude", subtitle = "Trendline included") + ylab("Total Cup Points")
-```
 
 # Geographic Distribution {data-navmenu="Data Overview"}
 
 ## Test {.tabset}
 
+### Overall
+
+```{r, fig.cap="Geographic distribution of coffee total cup points. Total cup points represents an overall judgment of the coffee bean taking into account multiple aspects of the coffee"}
+df <- data.code %>%
+  group_by(country_of_origin) %>%
+  summarise(mean_variable = mean(total_cup_points, na.rm = TRUE)) %>%
+  full_join(iso, by = c("country_of_origin" = "COUNTRY"))
+
+g <- list(
+  showframe = FALSE,
+  showcoastlines = TRUE,
+  lonaxis = list(showgrid = T),
+  lataxis = list(showgrid = T),
+  projection = list(type = 'Mercator')
+)
+
+fig <- plot_geo(df)
+l <- list(color = toRGB("grey"), width = 0.5)
+fig <- fig %>% add_trace(
+    z = ~mean_variable, color = ~mean_variable, colors = 'Blues',
+    text = ~country_of_origin, locations = ~CODE, marker = list(line = l)
+  )
+fig <- fig %>% colorbar(title = 'Total Cup Points')
+fig <- fig %>% layout(
+    title = 'Geographic Distribution of Mean Coffee Overall Judgment',
+    geo = g
+  )
+
+fig
+```
+
 ### Body
 
-```{r, fig.cap="Geographic Distribution of coffee body"}
+```{r, fig.cap="Geographic distribution of coffee body"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_variable = mean(body, na.rm = TRUE)) %>%
@@ -194,7 +208,7 @@ fig
 
 ### Sweetness
 
-```{r, fig.cap="Geographic Distribution of coffee sweetness"}
+```{r, fig.cap="Geographic distribution of coffee sweetness"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_variable = mean(sweetness, na.rm = TRUE)) %>%
@@ -226,7 +240,7 @@ fig
 
 ### Acidity
 
-```{r, fig.cap="Geographic Distribution of coffee acidity"}
+```{r, fig.cap="Geographic distribution of coffee acidity"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_variable = mean(acidity, na.rm = TRUE)) %>%
@@ -258,7 +272,7 @@ fig
 
 ### Flavor
 
-```{r, fig.cap="Geographic Distribution of coffee flavor"}
+```{r, fig.cap="Geographic distribution of coffee flavor"}
 df <- data.code %>%
   group_by(country_of_origin) %>%
   summarise(mean_variable = mean(flavor, na.rm = TRUE)) %>%
@@ -288,35 +302,58 @@ fig
 ```
 
 
-### Aftertaste
 
-```{r, fig.cap="Geographic Distribution of coffee aftertaste"}
-df <- data.code %>%
-  group_by(country_of_origin) %>%
-  summarise(mean_variable = mean(aftertaste, na.rm = TRUE)) %>%
-  full_join(iso, by = c("country_of_origin" = "COUNTRY"))
 
-g <- list(
-  showframe = FALSE,
-  showcoastlines = TRUE,
-  lonaxis = list(showgrid = T),
-  lataxis = list(showgrid = T),
-  projection = list(type = 'Mercator')
+# Understand Altitude {data-navmenu="Data Overview"}
+
+## Column {data-width=500}
+
+### Altitude
+
+```{r, fig.cap="Boxplot of mean altitude in meters. Altitude shows higher variation with outliers in extreme values"}
+p1 <- ggplot(data, aes(x=factor(0), y=altitude_mean_meters)) + 
+  geom_boxplot() + ggtitle("Boxplot of mean altitude (all coffee included)") + ylab("mean altitude (meters)") + xlab("") + coord_flip()
+p2 <- data %>%
+  filter(altitude_mean_meters < 10000) %>%
+  ggplot(aes(x=factor(0), y=altitude_mean_meters)) + 
+  geom_boxplot() + ggtitle("Boxplot of mean altitude with abnormal removed") + ylab("mean altitude (meters)")  + xlab("") + coord_flip()
+p1/p2 + plot_annotation(
+  title = "Boxplot of mean altitude in meters"
 )
+```
 
-fig <- plot_geo(df)
-l <- list(color = toRGB("grey"), width = 0.5)
-fig <- fig %>% add_trace(
-    z = ~mean_variable, color = ~mean_variable, colors = 'Blues',
-    text = ~country_of_origin, locations = ~CODE, marker = list(line = l)
-  )
-fig <- fig %>% colorbar(title = 'After Taste')
-fig <- fig %>% layout(
-    title = 'Geographic Distribution of Mean Coffee After Taste',
-    geo = g
-  )
+## Column {data-width=500} {.tabset}
 
-fig
+### Altitude by processing method
+
+```{r, fig.cap = "Distribution of mean altitude by processing method. We do not observe significant difference in distribution among the different processing methods"}
+data %>%
+  filter(!is.na(processing_method)) %>%
+  filter(altitude_mean_meters < 10000) %>%
+  filter(processing_method != "Other") %>%
+  ggplot(aes(x=altitude_mean_meters, fill=processing_method)) + 
+  geom_histogram(position="identity", alpha=0.5)  + ggtitle("Histogram of Mean Altitude", subtitle = "grouped by processing method") + xlab("Mean Altitude (meters)") + labs(fill="Processing Method") + theme(legend.position="bottom") + guides(fill = guide_legend(nrow = 2))
+```
+
+
+### Cupping by altitude
+
+```{r, fig.cap="Scatterplot of cupping versus altitude. We do not see strong correlation at this point"}
+data %>% 
+  filter(total_cup_points != 0) %>%
+  filter(altitude_mean_meters < 10000) %>%
+  ggplot(aes(x=altitude_mean_meters, y=total_cup_points)) + 
+  geom_point() + geom_smooth(method = "lm")  + ggtitle("Scatter plot of cup points against altitude", subtitle = "Best fit using linear model") + ylab("Total Cup Points") + xlab("Mean Altitude (meters)")
+```
+
+### Flavor by altitude
+
+```{r, fig.cap="Scatterplot of flavor versus altitude. We do not see strong correlation at this point"}
+data %>% 
+  filter(total_cup_points != 0) %>%
+  filter(altitude_mean_meters < 10000) %>%
+  ggplot(aes(x=altitude_mean_meters, y=total_cup_points)) + 
+  geom_point() + geom_smooth(method = "lm")  + ggtitle("Scatter plot of flavor against altitude", subtitle = "Best fit using linear model") + ylab("Flavor") + xlab("Mean Altitude (meters)")
 ```
 
 
@@ -328,12 +365,13 @@ fig
 ### Correlation among cupping criteria
 
 ```{r, fig.cap="Correlation among cupping criteria. Moisure shows low correlation with other criteria"}
-corrplot(cor(data[,c("aroma", "flavor", "aftertaste", "acidity", "body", "balance", "uniformity",
-         "clean_cup", "sweetness", "moisture")]), method="color", type="upper", tl.col="black", tl.srt=60)
+corrplot(cor(data[,c("aroma", "flavor", "aftertaste", "acidity", "body", 
+                     "balance", "uniformity", "clean_cup", "sweetness", "moisture")], 
+             use="complete.obs"), 
+         method="color", type="upper", tl.col="black", tl.srt=60)
 ```
 
-
-# Attribute Interaction {data-navmenu="Across Attributes"}
+# Attribute Relationship {data-navmenu="Across Attributes"}
 
 ## Column {.sidebar}
 
@@ -368,7 +406,7 @@ checkboxInput("outliers", "Show outliers", TRUE)
 
 ## Column
 
-### Interaction between coffee attributes and cupping
+### Relationship between coffee attributes and quality measures
 
 ```{r, fig.cap="Interaction between methods and cupping"}
 formulaText <- reactive({
@@ -376,8 +414,9 @@ formulaText <- reactive({
   })
 
 formulaTitle <- reactive({
-    paste(str_to_title(gsub("_", " " , input$variable1)), 
-          "versus", 
+    paste("Boxplot of",
+          str_to_title(gsub("_", " " , input$variable1)), 
+          "against", 
           str_to_title(gsub("_", " " , input$variable2)))
   })
 formulaylab <- reactive({
@@ -438,7 +477,7 @@ selectInput("cup", "Cupping Criteria:",
 
 ## Column
 
-### Total cup points versus cupping criteria
+### Total cup points versus quality measures
 
 ```{r, fig.cap="cupping points correlation"}
 formulaText1 <- reactive({
@@ -446,7 +485,7 @@ formulaText1 <- reactive({
   })
 
 formulaTitle1 <- reactive({
-    paste("Total Cup Points versus", 
+    paste("Scatter Plot of Total Cup Points against", 
           str_to_title(gsub("_", " " , input$cup)))
   })
 formulaxlab1 <- reactive({
